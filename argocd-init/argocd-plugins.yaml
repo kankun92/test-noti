@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-plugins
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    name: k8s-tools
+  source:
+    repoURL: https://github.com/lyhuuloi/helm-gea.git
+    targetRevision: HEAD
+    path: argocd-plugins
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+      allowEmpty: true
+    syncOptions:
+      - PrunePropagationPolicy=foreground
+      - Prune=true
+      - PruneLast=true
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true

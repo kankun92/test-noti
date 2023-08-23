@@ -1,0 +1,150 @@
+{{- range .Values.applications.apps }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd-image-updater.argoproj.io/app.helm.image-name: image.name
+    argocd-image-updater.argoproj.io/app.helm.image-tag: image.tag
+    argocd-image-updater.argoproj.io/app.update-strategy: latest
+    argocd-image-updater.argoproj.io/app.ignore-tags: latest, regexp:^latest.*$
+    argocd-image-updater.argoproj.io/app.allow-tags: regexp:^[0-9a-f]{7}-{{ .destNamespace }}$
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+    #argocd-image-updater.argoproj.io/app.force-update: "true"
+    argocd-image-updater.argoproj.io/image-list: app=282660418429.dkr.ecr.ap-southeast-1.amazonaws.com/{{ .appImage }}
+    {{- if .slack }}
+    notifications.argoproj.io/subscribe.on-deployed.slack: {{ .slack | default "" }}
+    {{- end }}
+    {{- if .teams }}
+    notifications.argoproj.io/subscribe.on-deployed.slack: {{ .slack | default "" }}
+    {{- end }}
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  name: {{ .appName }}-{{ .destNamespace }}
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .project | default "default" | quote }}
+  destination:
+    name: {{ .destCluster }}
+    namespace: {{ .destNamespace }}
+  source:
+    helm:
+      parameters:
+        - name: revisionHistoryLimit
+          value:  {{ .revisionHistoryLimit | default "5" | quote }}
+        # Image
+        - forceString: true
+          name: image.repository
+          value: 282660418429.dkr.ecr.ap-southeast-1.amazonaws.com/{{ .appImage }}
+        - forceString: true
+          name: imagePullSecrets[0].name
+          value: aws-ecr-secret
+        # Chart name (Display as: Container name) - This action need to be done manually
+        {{- if .chartName }}
+        - forceString: true
+          name: nameOverride
+          value: {{ .chartName }}-{{ .destNamespace }}
+        {{- end }}
+        - forceString: true
+          name: fullnameOverride
+          value: {{ .appName }}-{{ .destNamespace }}
+        - forceString: true
+          name: image.tag
+          value: latest-{{ .destNamespace }}
+        # Service
+        {{- if .servicePort }}
+        - name: service.port
+          value: {{ .servicePort | default "80" | quote }}
+        {{- end }}
+        # Ingress 1
+        - forceString: true
+          name: ingress.hosts[0].host
+          value: {{ .ingressHost }}
+        {{- if .ingressPath }}
+        - forceString: true
+          name: ingress.hosts[0].paths[0].path
+          value: {{ .ingressPath | default "/" | quote }}
+        {{- end }}
+        - forceString: true
+          name: ingress.hosts[0].paths[0].backend.service.name
+          value: {{ .appName }}-{{ .destNamespace }}
+        - name: ingress.hosts[0].paths[0].backend.service.port.number
+          value: {{ .ingressPort | default "80" | quote }}
+        # Ingress 2
+        {{- if .ingressHost2 }}
+        - forceString: true
+          name: ingress.hosts[1].host
+          value: {{ .ingressHost2 }}
+        - forceString: true
+          name: ingress.hosts[1].paths[0].path
+          value: /
+        - forceString: true
+          name: ingress.hosts[1].paths[0].pathType
+          value: Prefix
+        - name: ingress.hosts[1].paths[0].backend.service.port.number
+          value: '80'
+        - forceString: true
+          name: ingress.hosts[1].paths[0].backend.service.name
+          value: {{ .appName }}-{{ .destNamespace }}
+        {{- end }}
+        # Resources
+        {{- if .resources }}
+          {{- if .resources.limits }}
+        - name: resources.limits.cpu
+          value: {{ .resources.limits.cpu | default "768m" | quote }}
+        - name: resources.limits.memory
+          value: {{ .resources.limits.memory | default "512Mi" | quote }}
+          {{- end }}
+          {{- if .resources.requests }}
+        - name: resources.requests.cpu
+          value: {{ .resources.requests.cpu | default "512m" | quote }}
+        - name: resources.requests.memory
+          value: {{ .resources.requests.memory | default "512Mi" | quote }}
+          {{- end }}
+        {{- end }}
+        #Auto-scaling
+        {{- if .autoscaling }}
+        - name: autoscaling.enabled
+          value: {{ .autoscaling.enabled | default "false" | quote }}
+        - name: autoscaling.minReplicas
+          value: {{ .autoscaling.min | default "1" | quote }}
+        - name: autoscaling.maxReplicas
+          value: {{ .autoscaling.max | default "3" | quote }}
+        - name: autoscaling.targetCPUUtilizationPercentage
+          value: {{ .autoscaling.cpu | default "75" | quote }}
+        - name: autoscaling.targetMemoryUtilizationPercentage
+          value: {{ .autoscaling.memory | default "75" | quote }}
+        {{- end }}
+        {{- if .healthcheck }}
+        - name: healthcheck.liveness
+          value: {{ .healthcheck.liveness | default "/" | quote }}
+        - name: healthcheck.readiness
+          value: {{ .healthcheck.readiness | default "/" | quote }}
+        {{- end }}
+        # Volumes
+        {{- if .volumeName }}
+        - name: volumes[0].name
+          value: {{ .volumeName | quote }}
+        - name: volumes[0].persistentVolumeClaim.claimName
+          value: {{ .volumeClaimName | quote }}
+        - name: volumeMounts[0].name
+          value: {{ .volumeName | quote }}
+        - name: volumeMounts[0].mountPath
+          value: {{ .volumePath | quote }}  
+        {{- end }}
+      valueFiles:
+        - {{ .valuesCustom | default "values" }}.yaml
+    repoURL: {{ .tplRepoUrl | default "https://github.com/lyhuuloi/helm-gea.git" | quote }}
+    targetRevision: HEAD
+    path: {{ .tplRepoPath | default "argocd-apps-helm" | quote }}
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+      #- ApplyOutOfSyncOnly=true
+---
+{{- end }}

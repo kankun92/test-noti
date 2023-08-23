@@ -1,0 +1,87 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lhl-ecr-secret-update
+  namespace: production
+spec:
+  #revisionHistoryLimit: 5
+  schedule: "0 */12 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 4
+      template:
+        spec:
+          serviceAccountName: ecr-secret-updater
+          initContainers:
+            - name: aws-container
+              image: public.ecr.aws/f0u4e1w8/awscli-kubectl:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID;
+                  aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY;
+                  aws secretsmanager get-secret-value --region $AWS_REGION --secret-id $AWS_SECRET_ID --query SecretString --output text > /mnt/secrets/aws-ecr.txt;
+              volumeMounts:
+                - name: secret-volume
+                  mountPath: "/mnt/secrets"
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: access-key-id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: secret-access-key
+                - name: AWS_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: region
+                - name: AWS_SECRET_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: secret-id
+          containers:
+            - name: kubectl-container
+              image: public.ecr.aws/f0u4e1w8/awscli-kubectl:latest
+              command: ["/bin/sh", "-c"]				
+              args:
+                - apk add jq;
+                  AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID;
+                  export AWS_ACCESS_KEY_ID=$(cat /mnt/secrets/aws-ecr.txt | jq -r '.AWS_ACCESS_KEY_ID');
+                  export AWS_SECRET_ACCESS_KEY=$(cat /mnt/secrets/aws-ecr.txt | jq -r '.AWS_SECRET_ACCESS_KEY');
+                  export AWS_REGION=$AWS_REGION;
+                  DOCKER_REGISTRY_SERVER=https://${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com;
+                  DOCKER_USER=AWS;
+                  DOCKER_PASSWORD=`aws ecr get-login-password --region ${AWS_REGION}`;
+                  kubectl delete secret aws-ecr-secret --ignore-not-found;
+                  kubectl create secret docker-registry aws-ecr-secret 
+                  --docker-server=$DOCKER_REGISTRY_SERVER
+                  --docker-username=AWS 
+                  --docker-password=$DOCKER_PASSWORD;
+              volumeMounts:
+                - name: secret-volume
+                  mountPath: "/mnt/secrets"	
+              env:
+                - name: AWS_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: region
+                - name: AWS_ACCOUNT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: account-id  
+          volumes:
+            - name: secret-volume
+              emptyDir:
+                medium: Memory
+          restartPolicy: OnFailure
+      ttlSecondsAfterFinished: 100

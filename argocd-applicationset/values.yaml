@@ -1,0 +1,19 @@
+appset:
+  - name: gea-firewall
+    appset_ns: argocd
+    clusterName: k8s-crm
+    clusterBranch: development
+    project: default
+    helm_path: firewall
+    helm_values: values.development.yaml
+    chart_repo: https://github.com/lyhuuloi/helm-gea.git
+    chart_repo_branch: HEAD
+    artifact_registry: 282660418429.dkr.ecr.ap-southeast-1.amazonaws.com/gm-firewall
+    write_back_value: argocd
+    #owner: lyhuuloi
+    #label: preview
+    #webhook_secret: argocd-secret
+    #webhook_secret_key: webhook.github.secret
+    #app_repo: firewall
+    qa_slack_channel: devops-qa
+    devops_slack_channel: devops-alerts
