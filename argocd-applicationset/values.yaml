@@ -6,7 +6,7 @@ appset:
     project: default
     helm_path: firewall
     helm_values: values.development.yaml
-    chart_repo: https://github.com/lyhuuloi/helm-gea.git
+    chart_repo: https://github.com/kankun92/test-noti.git
     chart_repo_branch: HEAD
     artifact_registry: 282660418429.dkr.ecr.ap-southeast-1.amazonaws.com/gm-firewall
     write_back_value: argocd

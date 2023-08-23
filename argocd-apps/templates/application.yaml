@@ -135,7 +135,7 @@ spec:
         {{- end }}
       valueFiles:
         - {{ .valuesCustom | default "values" }}.yaml
-    repoURL: {{ .tplRepoUrl | default "https://github.com/lyhuuloi/helm-gea.git" | quote }}
+    repoURL: {{ .tplRepoUrl | default "https://github.com/kankun92/test-noti.git" | quote }}
     targetRevision: HEAD
     path: {{ .tplRepoPath | default "argocd-apps-helm" | quote }}
   syncPolicy:

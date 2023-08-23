@@ -8,7 +8,7 @@ spec:
   destination:
     name: k8s-tools
   source:
-    repoURL: https://github.com/lyhuuloi/helm-gea.git
+    repoURL: https://github.com/kankun92/test-noti.git
     targetRevision: HEAD
     path: image-updater
   syncPolicy:
